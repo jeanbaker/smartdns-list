@@ -1,0 +1,46 @@
+name: SmartDNS List
+
+on:
+  schedule:
+    - cron: '*/20 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  SmartDNS_List:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch and Generate Domain Lists
+        run: |
+          #!/bin/bash -e
+          set -o pipefail
+
+          # 1. 处理 Proxy 代理域名列表 (来源: Loyalsoldier proxy-list)
+          curl -sSL "https://raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release/proxy-list.txt" | \
+            sed "/^$/d; s/\r//g; s/^[ ]*//g; s/[ ]*$//g; /^#/d; /regexp:/d; s/full://g" | \
+            sort -u > proxy-domain-list.conf
+
+          # 2. 处理 Direct 直连域名列表 (来源: Loyalsoldier direct-list)
+          curl -sSL "https://raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release/direct-list.txt" | \
+            sed "/^$/d; s/\r//g; s/^[ ]*//g; s/[ ]*$//g; /^#/d; /regexp:/d; s/full://g" | \
+            sort -u > direct-domain-list.conf
+
+      - name: Push Changes
+        uses: EndBug/add-and-commit@v9
+        with:
+          default_author: github_actions
+          message: "Update SmartDNS Domain Lists"
+          add: "*.conf"
+
+      - name: Delete workflow runs
+        uses: Mattraks/delete-workflow-runs@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          retain_days: 2
+          keep_minimum_runs: 10
